@@ -1,0 +1,45 @@
+name: Notify Update
+
+# Triggered automatically when a GitHub Release is published
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Expo push notification
+        # Requires the EXPO_PUSH_TOKEN secret in repo Settings → Secrets → Actions.
+        # How to get the token: open the Sonika app, the token is logged at startup
+        # (search "ExpoPushToken" in Android logcat).
+        # Format: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+        env:
+          EXPO_PUSH_TOKEN: ${{ secrets.EXPO_PUSH_TOKEN }}
+        run: |
+          if [ -z "$EXPO_PUSH_TOKEN" ]; then
+            echo "EXPO_PUSH_TOKEN not set — skipping push notification"
+            exit 0
+          fi
+
+          VERSION="${{ github.event.release.tag_name }}"
+          NOTES=$(echo '${{ toJson(github.event.release.body) }}' | head -c 200)
+
+          curl -s -X POST https://exp.host/--/api/v2/push/send \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            -d "{
+              \"to\": \"$EXPO_PUSH_TOKEN\",
+              \"title\": \"Aggiornamento disponibile\",
+              \"body\": \"Sonika $VERSION è pronto — tocca per aggiornare\",
+              \"data\": { \"openUpdate\": true },
+              \"sound\": \"default\",
+              \"priority\": \"high\",
+              \"channelId\": \"default\"
+            }" | tee /tmp/push_result.json
+
+          STATUS=$(jq -r '.data[0].status' /tmp/push_result.json 2>/dev/null || echo "unknown")
+          echo "Push status: $STATUS"
+          if [ "$STATUS" = "error" ]; then
+            jq '.data[0].details' /tmp/push_result.json
+          fi
