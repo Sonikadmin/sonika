@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,24 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../constants/theme';
+import { useNavigation } from '@react-navigation/native';
+import { COLORS, FONTS, SIZES } from '../constants/theme';
 import { useAudioStore } from '../store/audioStore';
 import { useProfileStore } from '../store/profileStore';
-import { useSettingsStore } from '../store/settingsStore';
 import { useDiaryStore } from '../store/diaryStore';
-import { WaveformVisualizer } from '../components/WaveformVisualizer';
-import { PowerButton } from '../components/PowerButton';
-import { BluetoothIndicator } from '../components/BluetoothIndicator';
-import { SourceSelector } from '../components/SourceSelector';
-import { OutputSelector } from '../components/OutputSelector';
-import { SonikaCleanButton } from '../components/SonikaCleanButton';
-import { ConversationModeButton } from '../components/ConversationModeButton';
-import { ProfileCarousel } from '../components/ProfileCarousel';
+import { CircularVisualizer } from '../components/CircularVisualizer';
+import { VolumeSlider } from '../components/VolumeSlider';
 import { audioEngine } from '../services/AudioEngine';
 import { bluetoothService } from '../services/BluetoothService';
 
@@ -32,63 +26,42 @@ export default function HomeScreen() {
     isRunning, micSource, audioOutput, sonikaClean, conversationMode,
     amplification, volumeLevel, leftEQ, rightEQ, leftVolume, rightVolume,
     stereoBalance, monoMode, monoChannel,
-    togglePower, setMicSource, setAudioOutput, toggleSonikaClean,
-    toggleConversationMode, setVolumeLevel, setConnectedDevices,
+    togglePower, toggleSonikaClean,
+    setVolumeLevel, setLeftVolume, setRightVolume, setConnectedDevices,
+    connectedDevices,
   } = useAudioStore();
 
-  const { activeProfileId, getActiveProfile } = useProfileStore();
-  const { settings } = useSettingsStore();
-  const { startSession, endSession } = useDiaryStore();
+  const { getActiveProfile } = useProfileStore();
+  const { entries, startSession, endSession } = useDiaryStore();
+  const navigation = useNavigation();
 
-  const volumeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Wire volume level from native engine → waveform visualizer
   useEffect(() => {
-    audioEngine.onVolumeLevel((level) => {
-      setVolumeLevel(level);
-    });
-    return () => {
-      audioEngine.onVolumeLevel(() => {});
-    };
+    audioEngine.onVolumeLevel((level) => setVolumeLevel(level));
+    return () => { audioEngine.onVolumeLevel(() => {}); };
   }, []);
 
-  // Clear volume indicator when engine stops
   useEffect(() => {
     if (!isRunning) setVolumeLevel(0);
   }, [isRunning]);
 
-  // Push settings changes to native engine while running
   useEffect(() => {
     if (!isRunning) return;
-    audioEngine.updateSettings({
-      sonikaClean, conversationMode, micSource, audioOutput,
-    });
+    audioEngine.updateSettings({ sonikaClean, conversationMode, micSource, audioOutput });
   }, [sonikaClean, conversationMode, micSource, audioOutput, isRunning]);
 
-  // Keep screen awake while running
   useEffect(() => {
-    if (isRunning) {
-      activateKeepAwakeAsync();
-    } else {
-      deactivateKeepAwake();
-    }
+    if (isRunning) activateKeepAwakeAsync();
+    else deactivateKeepAwake();
   }, [isRunning]);
 
-  // Bluetooth device scan on mount
   useEffect(() => {
-    const unsubscribe = bluetoothService.onDevicesChanged((devices) => {
-      setConnectedDevices(devices);
-    });
+    const unsub = bluetoothService.onDevicesChanged(setConnectedDevices);
     bluetoothService.startScan();
-    return () => {
-      unsubscribe();
-      bluetoothService.stopScan();
-    };
+    return () => { unsub(); bluetoothService.stopScan(); };
   }, []);
 
   const handlePowerToggle = useCallback(async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const profile = getActiveProfile();
     if (!isRunning) {
       try {
         await audioEngine.start({
@@ -97,6 +70,7 @@ export default function HomeScreen() {
           stereoBalance, sonikaClean, conversationMode,
           monoMode, monoChannel,
         });
+        const profile = getActiveProfile();
         if (profile) startSession(profile.id, profile.name);
         togglePower();
       } catch (e: any) {
@@ -108,9 +82,26 @@ export default function HomeScreen() {
       togglePower();
     }
   }, [isRunning, micSource, audioOutput, leftEQ, rightEQ, leftVolume, rightVolume,
-      amplification, stereoBalance, sonikaClean, conversationMode, monoMode, monoChannel]);
+      amplification, stereoBalance, sonikaClean, conversationMode, monoMode, monoChannel,
+      getActiveProfile, startSession, endSession]);
 
-  const activeProfile = getActiveProfile();
+  const handleVolumeChange = useCallback((v: number) => {
+    setLeftVolume(v);
+    setRightVolume(v);
+    if (isRunning) audioEngine.updateSettings({ leftVolume: v, rightVolume: v });
+  }, [isRunning]);
+
+  const handleAICleanChange = useCallback((v: number) => {
+    const shouldBeActive = v > 0.4;
+    if (shouldBeActive !== sonikaClean) toggleSonikaClean();
+    if (isRunning) audioEngine.updateSettings({ sonikaClean: shouldBeActive });
+  }, [sonikaClean, isRunning]);
+
+  const primaryDevice = connectedDevices.find((d) => d.connected) ?? null;
+
+  const totalSessions = entries.length;
+  const totalMinutes  = entries.reduce((acc, e) => acc + (e.duration ?? 0), 0);
+  const totalHours    = (totalMinutes / 60).toFixed(1);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -119,65 +110,98 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <View style={styles.header}>
-          <View style={styles.logoRow}>
-            <Text style={styles.logo}>Sonika</Text>
+          <View>
+            <View style={styles.logoRow}>
+              <Text style={styles.logo}>Sonika</Text>
+              <Ionicons name="pulse" size={16} color={COLORS.cyan} style={styles.logoIcon} />
+            </View>
+            <Text style={styles.subtitle}>AI Audio Amplification</Text>
+          </View>
+          <View style={styles.headerRight}>
             {isRunning && (
               <View style={styles.liveBadge}>
                 <View style={styles.liveDot} />
                 <Text style={styles.liveText}>LIVE</Text>
               </View>
             )}
+            <TouchableOpacity style={styles.bellBtn}>
+              <Ionicons name="notifications-outline" size={22} color={COLORS.textMuted} />
+            </TouchableOpacity>
           </View>
-          <BluetoothIndicator />
         </View>
 
-        {/* Active profile indicator */}
-        {activeProfile && (
-          <Text style={styles.profileLabel}>
-            {activeProfile.icon} {activeProfile.name} · {amplification}x
+        {/* ── Circular Visualizer ── */}
+        <View style={styles.visualizerSection}>
+          <CircularVisualizer
+            isActive={isRunning}
+            volumeLevel={volumeLevel}
+            onPress={handlePowerToggle}
+          />
+          <Text style={styles.tapHint}>
+            {isRunning ? 'Tocca per spegnere' : 'Tocca per accendere'}
           </Text>
-        )}
-
-        {/* Waveform visualizer */}
-        <View style={styles.waveformCard}>
-          <WaveformVisualizer isActive={isRunning} volumeLevel={volumeLevel} />
         </View>
 
-        {/* Power button */}
-        <PowerButton isOn={isRunning} onPress={handlePowerToggle} />
-
-        <Text style={styles.statusText}>
-          {isRunning ? 'Tocca per spegnere' : 'Tocca per accendere'}
-        </Text>
-
-        {/* Mic source */}
-        <SourceSelector selected={micSource} onChange={setMicSource} />
-
-        {/* Output selector */}
-        <OutputSelector selected={audioOutput} onChange={setAudioOutput} />
-
-        {/* Function buttons */}
-        <View style={styles.functionRow}>
-          <SonikaCleanButton active={sonikaClean} onPress={toggleSonikaClean} />
-          <ConversationModeButton active={conversationMode} onPress={toggleConversationMode} />
+        {/* ── Sliders ── */}
+        <View style={styles.card}>
+          <VolumeSlider
+            label="Volume"
+            value={leftVolume}
+            onValueChange={handleVolumeChange}
+            color={COLORS.cyan}
+          />
+          <VolumeSlider
+            label="AI Clean"
+            value={sonikaClean ? 0.7 : 0}
+            onValueChange={handleAICleanChange}
+            color={COLORS.primary}
+            suffix={sonikaClean ? 'Active' : 'Off'}
+          />
         </View>
 
-        {/* Mono mode quick toggle */}
-        <View style={styles.monoRow}>
-          <TouchableOpacity
-            style={[styles.monoBtn, monoMode && styles.monoBtnActive]}
-            onPress={() => useAudioStore.getState().setMonoMode(!monoMode, monoChannel)}
-          >
-            <Text style={styles.monoBtnText}>
-              {monoMode ? `👂 Mono (${monoChannel === 'left' ? 'Sin' : 'Des'})` : '👂 Udito Unilaterale'}
-            </Text>
-          </TouchableOpacity>
+        {/* ── Bluetooth Card ── */}
+        <View style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={styles.cardIconWrap}>
+              <Ionicons name="headset" size={22} color={COLORS.cyan} />
+            </View>
+            <View style={styles.cardBody}>
+              <Text style={styles.cardTitle}>
+                {primaryDevice ? 'Bluetooth Connected' : 'Bluetooth'}
+              </Text>
+              <Text style={styles.cardSub}>
+                {primaryDevice ? primaryDevice.name : 'Nessun dispositivo connesso'}
+              </Text>
+            </View>
+            {primaryDevice && (
+              <View style={styles.connectedBadgeWrap}>
+                <Text style={styles.connectedText}>Connected</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        {/* Profile carousel */}
-        <ProfileCarousel />
+        {/* ── Hearing Diary Card ── */}
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.75}
+          onPress={() => navigation.navigate('Diary' as never)}
+        >
+          <View style={styles.cardRow}>
+            <View style={styles.cardBody}>
+              <Text style={styles.cardTitle}>Hearing Diary</Text>
+              <Text style={styles.cardSub}>
+                Sessions: {totalSessions} | Hours: {totalHours}
+              </Text>
+            </View>
+            <View style={styles.cardRowRight}>
+              <Ionicons name="pulse-outline" size={22} color={COLORS.primary} />
+              <Text style={styles.viewLog}>View Log</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
         <View style={styles.spacer} />
       </ScrollView>
@@ -190,12 +214,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: 24,
-  },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 32 },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -207,18 +229,31 @@ const styles = StyleSheet.create({
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SIZES.sm,
   },
   logo: {
     color: COLORS.text,
-    fontSize: FONTS.size.xxxl,
-    fontWeight: FONTS.weight.heavy,
-    letterSpacing: -1,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  logoIcon: {
+    marginLeft: 6,
+    marginTop: 4,
+  },
+  subtitle: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.size.sm,
+    marginTop: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.sm,
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.error + '33',
+    backgroundColor: COLORS.error + '25',
     borderRadius: SIZES.borderRadius.full,
     paddingHorizontal: SIZES.sm,
     paddingVertical: 3,
@@ -233,60 +268,89 @@ const styles = StyleSheet.create({
   liveText: {
     color: COLORS.error,
     fontSize: FONTS.size.xs,
-    fontWeight: FONTS.weight.bold,
+    fontWeight: '700',
     letterSpacing: 1,
   },
-  profileLabel: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.size.md,
-    textAlign: 'center',
-    marginBottom: SIZES.xs,
-  },
-  waveformCard: {
-    marginHorizontal: SIZES.lg,
-    backgroundColor: COLORS.surface,
-    borderRadius: SIZES.borderRadius.lg,
-    overflow: 'hidden',
-    ...SHADOWS.small,
-  },
-  statusText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.size.sm,
-    textAlign: 'center',
-    marginTop: SIZES.xs,
-    marginBottom: SIZES.sm,
-  },
-  functionRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: SIZES.md,
-    marginTop: SIZES.md,
-    paddingHorizontal: SIZES.lg,
-    flexWrap: 'wrap',
-  },
-  monoRow: {
-    paddingHorizontal: SIZES.lg,
-    marginTop: SIZES.md,
-    alignItems: 'center',
-  },
-  monoBtn: {
-    paddingHorizontal: SIZES.lg,
-    paddingVertical: SIZES.sm,
-    borderRadius: SIZES.borderRadius.full,
+  bellBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: COLORS.card,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  monoBtnActive: {
-    backgroundColor: COLORS.warning + '22',
-    borderColor: COLORS.warning,
+
+  // Visualizer
+  visualizerSection: {
+    alignItems: 'center',
+    paddingVertical: SIZES.xl,
   },
-  monoBtnText: {
+  tapHint: {
     color: COLORS.textMuted,
     fontSize: FONTS.size.sm,
-    fontWeight: FONTS.weight.medium,
+    marginTop: SIZES.md,
   },
-  spacer: {
-    height: SIZES.lg,
+
+  // Cards
+  card: {
+    marginHorizontal: SIZES.lg,
+    marginBottom: SIZES.md,
+    backgroundColor: COLORS.card,
+    borderRadius: SIZES.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SIZES.lg,
   },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.md,
+  },
+  cardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.cyan + '18',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardBody: {
+    flex: 1,
+  },
+  cardTitle: {
+    color: COLORS.text,
+    fontSize: FONTS.size.md,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  cardSub: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.size.sm,
+  },
+  connectedBadgeWrap: {
+    backgroundColor: COLORS.success + '20',
+    borderRadius: SIZES.borderRadius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLORS.success + '50',
+  },
+  connectedText: {
+    color: COLORS.success,
+    fontSize: FONTS.size.xs,
+    fontWeight: '600',
+  },
+  cardRowRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  viewLog: {
+    color: COLORS.primary,
+    fontSize: FONTS.size.sm,
+    fontWeight: '600',
+  },
+
+  spacer: { height: SIZES.lg },
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -9,7 +9,8 @@ import Animated, {
 import { COLORS, FONTS, SIZES } from '../constants/theme';
 import { clamp } from '../utils/audio';
 
-const TRACK_WIDTH = 240;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const TRACK_WIDTH = SCREEN_WIDTH - 80; // 16 screen + 20 card padding each side
 const THUMB = 22;
 
 interface Props {
@@ -17,10 +18,17 @@ interface Props {
   value: number;
   onValueChange: (val: number) => void;
   color?: string;
+  suffix?: string;
 }
 
-export function VolumeSlider({ label, value, onValueChange, color = COLORS.primary }: Props) {
-  const startX = useSharedValue(0);
+export function VolumeSlider({
+  label,
+  value,
+  onValueChange,
+  color = COLORS.primary,
+  suffix,
+}: Props) {
+  const startX  = useSharedValue(0);
   const position = useSharedValue(value * TRACK_WIDTH);
 
   const gesture = Gesture.Pan()
@@ -34,11 +42,15 @@ export function VolumeSlider({ label, value, onValueChange, color = COLORS.prima
   const thumbStyle = useAnimatedStyle(() => ({ left: position.value - THUMB / 2 }));
   const fillStyle  = useAnimatedStyle(() => ({ width: position.value }));
 
+  const pct = Math.round(value * 100);
+
   return (
     <View style={styles.container}>
       <View style={styles.row}>
         <Text style={styles.label}>{label}</Text>
-        <Text style={[styles.value, { color }]}>{Math.round(value * 100)}%</Text>
+        <Text style={[styles.valueText, { color }]}>
+          {pct}%{suffix ? ` ${suffix}` : ''}
+        </Text>
       </View>
       <View style={[styles.trackWrapper, { width: TRACK_WIDTH }]}>
         <View style={styles.track}>
@@ -53,18 +65,18 @@ export function VolumeSlider({ label, value, onValueChange, color = COLORS.prima
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: SIZES.md },
+  container: { marginBottom: SIZES.lg },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: SIZES.xs,
+    marginBottom: SIZES.sm,
   },
   label: {
     color: COLORS.text,
     fontSize: FONTS.size.md,
     fontWeight: FONTS.weight.medium,
   },
-  value: {
+  valueText: {
     fontSize: FONTS.size.md,
     fontWeight: FONTS.weight.semibold,
   },
@@ -74,7 +86,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   track: {
-    height: 6,
+    height: 5,
     backgroundColor: COLORS.border,
     borderRadius: 3,
     overflow: 'hidden',
@@ -82,6 +94,7 @@ const styles = StyleSheet.create({
   fill: {
     height: '100%',
     borderRadius: 3,
+    opacity: 0.9,
   },
   thumb: {
     position: 'absolute',
@@ -90,8 +103,8 @@ const styles = StyleSheet.create({
     borderRadius: THUMB / 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 5,
   },
 });
