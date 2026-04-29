@@ -50,7 +50,8 @@
     "plugins": [
       "expo-av",
       "expo-notifications",
-      "expo-file-system"
+      "expo-file-system",
+      "expo-task-manager"
     ]
   }
 }

@@ -1,5 +1,8 @@
 import 'react-native-gesture-handler';
-import React, { useEffect, useState } from 'react';
+// Must be imported before TaskManager tasks are used
+import './src/services/BackgroundUpdateService';
+
+import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,6 +13,10 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { COLORS } from './src/constants/theme';
 import { UpdateModal } from './src/components/UpdateModal';
 import { checkForUpdate, UpdateInfo } from './src/services/UpdateService';
+import {
+  registerBackgroundUpdate,
+  extractUpdateFromNotification,
+} from './src/services/BackgroundUpdateService';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -35,15 +42,48 @@ const navTheme = {
 
 export default function App() {
   const [pendingUpdate, setPendingUpdate] = useState<UpdateInfo | null>(null);
+  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener    = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
     Notifications.requestPermissionsAsync();
-    // Controlla aggiornamenti dopo 3 secondi (lascia caricare l'app)
+
+    // Register background polling task (checks version.json every ~15 min)
+    registerBackgroundUpdate().catch(() => {});
+
+    // Handle notification tap when app is foregrounded/opened
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(
+      response => {
+        const data = response.notification.request.content.data ?? {};
+        const update = extractUpdateFromNotification(
+          data as Record<string, unknown>,
+        );
+        if (update) setPendingUpdate(update);
+      },
+    );
+
+    // Also handle if a notification arrives while app is in foreground (show modal directly)
+    notificationListener.current = Notifications.addNotificationReceivedListener(
+      notification => {
+        const data = notification.request.content.data ?? {};
+        const update = extractUpdateFromNotification(
+          data as Record<string, unknown>,
+        );
+        if (update) setPendingUpdate(update);
+      },
+    );
+
+    // Check on launch as well (3 s delay so the app can finish loading)
     const timer = setTimeout(async () => {
       const update = await checkForUpdate();
       if (update) setPendingUpdate(update);
     }, 3000);
-    return () => clearTimeout(timer);
+
+    return () => {
+      clearTimeout(timer);
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
   }, []);
 
   return (
