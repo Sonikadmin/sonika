@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Sonika",
+    "slug": "sonika",
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D1A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sonika.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Sonika necessita del microfono per captare e amplificare i suoni ambientali.",
+        "NSBluetoothAlwaysUsageDescription": "Sonika usa il Bluetooth per connettersi a microfoni e dispositivi audio esterni.",
+        "NSBluetoothPeripheralUsageDescription": "Sonika usa il Bluetooth per connettersi a dispositivi audio.",
+        "UIBackgroundModes": ["audio", "bluetooth-central"]
+      }
+    },
+    "android": {
+      "package": "com.sonika.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D0D1A"
+      },
+      "notification": {
+        "icon": "./assets/notification-icon.png",
+        "color": "#7C4DFF"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.VIBRATE",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ]
+    },
+    "plugins": [
+      "expo-av",
+      "expo-notifications",
+      "expo-file-system"
+    ]
+  }
+}

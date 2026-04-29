@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Android build output
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+
+# Native module build artifacts
+modules/sonika-audio-engine/android/build/
+modules/sonika-audio-engine/android/.gradle/
+
+# iOS build output
+ios/build/
+ios/Pods/
+ios/DerivedData/
+
+# Gradle cache
+.gradle/
+
+# Environment
+.env
+.env.local
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Design scripts (non serve nel repo)
+design/convert_assets.py
+design/generate_splash.py

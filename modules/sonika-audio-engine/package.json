@@ -1,0 +1,17 @@
+{
+  "name": "sonika-audio-engine",
+  "version": "1.0.0",
+  "description": "Native real-time audio engine for Sonika",
+  "main": "src/index.ts",
+  "files": [
+    "src",
+    "ios",
+    "android",
+    "expo-module.config.json"
+  ],
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}
