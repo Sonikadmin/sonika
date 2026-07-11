@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   Switch,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../constants/theme';
+import { COLORS, FONTS, SIZES } from '../constants/theme';
 import { useAudioStore } from '../store/audioStore';
 import { EQBandSlider } from '../components/EQBandSlider';
 import { StereoBalance } from '../components/StereoBalance';
 import { AmplificationControl } from '../components/AmplificationControl';
+import { ScreenBackground } from '../components/ScreenBackground';
 import { flatEQBands } from '../utils/audio';
 
 type Channel = 'left' | 'right';
@@ -28,23 +28,47 @@ export default function EqualizerScreen() {
   } = useAudioStore();
 
   const [linkedChannels, setLinkedChannels] = useState(false);
+  const [activeChannel, setActiveChannel]   = useState<Channel>('left');
 
-  const handleLeftBand = (id: string, gain: number) => {
-    updateLeftBand(id, gain);
-    if (linkedChannels) updateRightBand(id, gain);
+  const isLeft  = linkedChannels || activeChannel === 'left';
+  const bands   = isLeft ? leftEQ : rightEQ;
+  const volume  = isLeft ? leftVolume : rightVolume;
+  const accent  = linkedChannels
+    ? COLORS.primary
+    : isLeft ? COLORS.primary : COLORS.secondary;
+
+  const handleBand = (id: string, gain: number) => {
+    if (linkedChannels) {
+      updateLeftBand(id, gain);
+      updateRightBand(id, gain);
+    } else if (isLeft) {
+      updateLeftBand(id, gain);
+    } else {
+      updateRightBand(id, gain);
+    }
   };
 
-  const handleRightBand = (id: string, gain: number) => {
-    updateRightBand(id, gain);
-    if (linkedChannels) updateLeftBand(id, gain);
+  const handleVolume = (v: number) => {
+    if (linkedChannels) {
+      setLeftVolume(v);
+      setRightVolume(v);
+    } else if (isLeft) {
+      setLeftVolume(v);
+    } else {
+      setRightVolume(v);
+    }
   };
 
-  const resetLeft = () => setLeftEQ(flatEQBands());
-  const resetRight = () => setRightEQ(flatEQBands());
+  const resetChannel = () => {
+    if (linkedChannels) { setLeftEQ(flatEQBands()); setRightEQ(flatEQBands()); }
+    else if (isLeft)    setLeftEQ(flatEQBands());
+    else                setRightEQ(flatEQBands());
+  };
+
   const resetAll = () => { setLeftEQ(flatEQBands()); setRightEQ(flatEQBands()); };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScreenBackground>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -65,78 +89,70 @@ export default function EqualizerScreen() {
           />
         </View>
 
-        {/* EQ Channels */}
-        <View style={styles.channelsRow}>
-          {/* LEFT */}
-          <View style={styles.channel}>
-            <View style={styles.channelHeader}>
-              <Text style={[styles.channelTitle, { color: COLORS.primary }]}>Sinistra (L)</Text>
-              <TouchableOpacity onPress={resetLeft}>
-                <Text style={styles.resetBtn}>Reset</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.volumeRow}>
-              <Text style={styles.volLabel}>Vol</Text>
-              <View style={styles.volBar}>
-                <TouchableOpacity
-                  style={[styles.volStep, leftVolume >= 0.1 && styles.volStepFilled]}
-                  onPress={() => setLeftVolume(0.1)} />
-                {[0.2, 0.4, 0.6, 0.8, 1.0].map((v) => (
-                  <TouchableOpacity
-                    key={v}
-                    style={[styles.volStep, leftVolume >= v && styles.volStepFilled]}
-                    onPress={() => setLeftVolume(v)}
-                  />
-                ))}
-              </View>
-              <Text style={styles.volValue}>{Math.round(leftVolume * 100)}%</Text>
-            </View>
-            <View style={styles.bands}>
-              {leftEQ.map((band) => (
-                <EQBandSlider
-                  key={band.id}
-                  band={band}
-                  onChange={handleLeftBand}
-                  color={COLORS.primary}
-                />
-              ))}
-            </View>
+        {/* Channel selector */}
+        {!linkedChannels && (
+          <View style={styles.segment}>
+            <TouchableOpacity
+              style={[
+                styles.segmentBtn,
+                activeChannel === 'left' && { backgroundColor: COLORS.primary + '2A', borderColor: COLORS.primary },
+              ]}
+              onPress={() => setActiveChannel('left')}
+            >
+              <Text style={[styles.segmentText, activeChannel === 'left' && { color: COLORS.primaryLight }]}>
+                Sinistra (L)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.segmentBtn,
+                activeChannel === 'right' && { backgroundColor: COLORS.secondary + '22', borderColor: COLORS.secondary },
+              ]}
+              onPress={() => setActiveChannel('right')}
+            >
+              <Text style={[styles.segmentText, activeChannel === 'right' && { color: COLORS.secondary }]}>
+                Destra (R)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Channel panel */}
+        <View style={styles.channelCard}>
+          <View style={styles.channelHeader}>
+            <Text style={[styles.channelTitle, { color: accent }]}>
+              {linkedChannels ? 'Entrambi i canali (L = R)' : isLeft ? 'Orecchio sinistro' : 'Orecchio destro'}
+            </Text>
+            <TouchableOpacity onPress={resetChannel}>
+              <Text style={styles.resetBtn}>Reset</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Divider */}
-          <View style={styles.divider} />
-
-          {/* RIGHT */}
-          <View style={styles.channel}>
-            <View style={styles.channelHeader}>
-              <Text style={[styles.channelTitle, { color: COLORS.secondary }]}>Destra (R)</Text>
-              <TouchableOpacity onPress={resetRight}>
-                <Text style={styles.resetBtn}>Reset</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.volumeRow}>
-              <Text style={styles.volLabel}>Vol</Text>
-              <View style={styles.volBar}>
-                {[0.1, 0.2, 0.4, 0.6, 0.8, 1.0].map((v) => (
-                  <TouchableOpacity
-                    key={v}
-                    style={[styles.volStep, rightVolume >= v && { ...styles.volStepFilled, backgroundColor: COLORS.secondary }]}
-                    onPress={() => setRightVolume(v)}
-                  />
-                ))}
-              </View>
-              <Text style={[styles.volValue, { color: COLORS.secondary }]}>{Math.round(rightVolume * 100)}%</Text>
-            </View>
-            <View style={styles.bands}>
-              {rightEQ.map((band) => (
-                <EQBandSlider
-                  key={band.id}
-                  band={band}
-                  onChange={handleRightBand}
-                  color={COLORS.secondary}
+          {/* Volume */}
+          <View style={styles.volumeRow}>
+            <Text style={styles.volLabel}>Vol</Text>
+            <View style={styles.volBar}>
+              {[0.1, 0.2, 0.4, 0.6, 0.8, 1.0].map((v) => (
+                <TouchableOpacity
+                  key={v}
+                  style={[styles.volStep, volume >= v && { backgroundColor: accent }]}
+                  onPress={() => handleVolume(v)}
                 />
               ))}
             </View>
+            <Text style={[styles.volValue, { color: accent }]}>{Math.round(volume * 100)}%</Text>
+          </View>
+
+          {/* EQ bands — full width */}
+          <View style={styles.bands}>
+            {bands.map((band) => (
+              <EQBandSlider
+                key={band.id}
+                band={band}
+                onChange={handleBand}
+                color={accent}
+              />
+            ))}
           </View>
         </View>
 
@@ -185,13 +201,12 @@ export default function EqualizerScreen() {
           <AmplificationControl value={amplification} onChange={setAmplification} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content:   { padding: SIZES.lg, paddingBottom: 40 },
+  content: { padding: SIZES.lg, paddingBottom: 40 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -215,7 +230,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     padding: SIZES.md,
     borderRadius: SIZES.borderRadius.md,
-    marginBottom: SIZES.lg,
+    marginBottom: SIZES.md,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -223,18 +238,37 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: FONTS.size.md,
   },
-  channelsRow: {
+  segment: {
     flexDirection: 'row',
-    gap: SIZES.md,
+    gap: SIZES.sm,
+    marginBottom: SIZES.md,
   },
-  channel: {
+  segmentBtn: {
     flex: 1,
+    paddingVertical: SIZES.md,
+    borderRadius: SIZES.borderRadius.md,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  segmentText: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.size.md,
+    fontWeight: FONTS.weight.semibold,
+  },
+  channelCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: SIZES.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SIZES.lg,
   },
   channelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SIZES.sm,
+    marginBottom: SIZES.md,
   },
   channelTitle: {
     fontSize: FONTS.size.lg,
@@ -248,43 +282,34 @@ const styles = StyleSheet.create({
   volumeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: SIZES.md,
+    gap: SIZES.sm,
+    marginBottom: SIZES.lg,
   },
   volLabel: {
     color: COLORS.textMuted,
     fontSize: FONTS.size.xs,
-    width: 20,
+    width: 24,
   },
   volBar: {
     flex: 1,
     flexDirection: 'row',
-    gap: 3,
+    gap: 4,
   },
   volStep: {
     flex: 1,
-    height: 10,
-    borderRadius: 2,
+    height: 12,
+    borderRadius: 3,
     backgroundColor: COLORS.border,
   },
-  volStepFilled: {
-    backgroundColor: COLORS.primary,
-  },
   volValue: {
-    color: COLORS.primary,
-    fontSize: FONTS.size.xs,
+    fontSize: FONTS.size.sm,
     fontWeight: FONTS.weight.bold,
-    width: 32,
+    width: 42,
     textAlign: 'right',
   },
   bands: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  divider: {
-    width: 1,
-    backgroundColor: COLORS.border,
-    marginHorizontal: SIZES.xs,
+    justifyContent: 'space-between',
   },
   section: {
     marginTop: SIZES.xl,

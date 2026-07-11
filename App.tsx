@@ -17,6 +17,12 @@ import {
   registerBackgroundUpdate,
   extractUpdateFromNotification,
 } from './src/services/BackgroundUpdateService';
+import { initEngineSync } from './src/services/EngineSync';
+import { initCrashLog } from './src/services/CrashLog';
+import { initExposureGuard } from './src/services/ExposureGuard';
+import { OnboardingModal } from './src/components/OnboardingModal';
+
+initCrashLog();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -46,6 +52,11 @@ export default function App() {
   const responseListener    = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
+    // Sync store → native engine (EQ, volumi, amplificazione in tempo reale)
+    const unsubEngineSync = initEngineSync();
+    // Promemoria pausa dopo 2h di amplificazione continua
+    const unsubExposure = initExposureGuard();
+
     Notifications.requestPermissionsAsync();
 
     // Register background polling task (checks version.json every ~15 min)
@@ -80,6 +91,8 @@ export default function App() {
     }, 3000);
 
     return () => {
+      unsubEngineSync();
+      unsubExposure();
       clearTimeout(timer);
       notificationListener.current?.remove();
       responseListener.current?.remove();
@@ -99,6 +112,7 @@ export default function App() {
             onDismiss={() => setPendingUpdate(null)}
           />
         )}
+        <OnboardingModal />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

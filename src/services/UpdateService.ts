@@ -1,4 +1,6 @@
-import * as FileSystem from 'expo-file-system';
+// L'API legacy è necessaria: la nuova API di expo-file-system (default da SDK 54)
+// non espone cacheDirectory/createDownloadResumable/getContentUriAsync.
+import * as FileSystem from 'expo-file-system/legacy';
 import { UPDATE_CHECK_URL, CURRENT_VERSION_CODE } from '../constants/update';
 
 export interface UpdateInfo {

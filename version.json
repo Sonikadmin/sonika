@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
-  "versionCode": 3,
-  "releaseNotes": "- Nuova interfaccia grafica completa\n- Visualizzatore circolare neon animato\n- Slider Volume e AI Clean riprogettati\n- Card Bluetooth e Hearing Diary in home\n- Navigazione a 4 tab\n- Splash screen cosmica blu",
-  "apkUrl": "https://github.com/Sonikadmin/sonika/releases/download/v1.2.0/app-release.apk",
+  "version": "1.4.0",
+  "versionCode": 5,
+  "releaseNotes": "- Audio attivo a schermo spento (telefono in tasca)\n- Test dell'udito in-app con le cuffie\n- Profilo su misura dall'esame audiometrico (foto con AI o a mano)\n- Riduzione rumore ed eco di sistema, compressione in alta qualita\n- Avviso pausa dopo 2 ore, tile nel pannello rapido, onboarding\n\nNOTA per chi ha la versione 1.2.0 o precedente: scaricare l'APK e installarlo manualmente dopo aver DISINSTALLATO la vecchia app (firma aggiornata).",
+  "apkUrl": "https://github.com/Sonikadmin/sonika/releases/download/v1.4.0/app-release.apk",
   "mandatory": false
 }

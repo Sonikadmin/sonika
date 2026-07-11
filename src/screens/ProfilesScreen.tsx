@@ -9,14 +9,16 @@ import {
   TextInput,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenBackground } from '../components/ScreenBackground';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, FONTS, SIZES, SHADOWS, GRADIENTS } from '../constants/theme';
 import { useProfileStore } from '../store/profileStore';
 import { useAudioStore } from '../store/audioStore';
 import { AudioProfile } from '../types';
 import { flatEQBands } from '../utils/audio';
 import { nanoid } from '../utils/nanoid';
+import { AudiogramModal } from '../components/AudiogramModal';
 
 export default function ProfilesScreen() {
   const { profiles, activeProfileId, setActiveProfile, updateProfile, addProfile,
@@ -26,6 +28,7 @@ export default function ProfilesScreen() {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [renamingId, setRenamingId] = useState('');
   const [newName, setNewName] = useState('');
+  const [audiogramVisible, setAudiogramVisible] = useState(false);
 
   const handleSelect = (profile: AudioProfile) => {
     setActiveProfile(profile.id);
@@ -82,9 +85,34 @@ export default function ProfilesScreen() {
   const customs = profiles.filter((p) => !p.isPreset);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScreenBackground>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Profili Audio</Text>
+
+        {/* Audiogram hero card */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => setAudiogramVisible(true)}
+          style={styles.audiogramCardWrap}
+        >
+          <LinearGradient
+            colors={GRADIENTS.primarySoft}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.audiogramCard}
+          >
+            <View style={styles.audiogramIconWrap}>
+              <Text style={styles.audiogramIcon}>🦻</Text>
+            </View>
+            <View style={styles.audiogramBody}>
+              <Text style={styles.audiogramTitle}>Profilo su misura</Text>
+              <Text style={styles.audiogramSub}>
+                Crea il tuo profilo dall'esame audiometrico — a mano o con l'AI
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.cyan} />
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* Preset profiles */}
         <Text style={styles.sectionLabel}>Preimpostati</Text>
@@ -162,7 +190,13 @@ export default function ProfilesScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      {/* Audiogram modal */}
+      <AudiogramModal
+        visible={audiogramVisible}
+        onClose={() => setAudiogramVisible(false)}
+      />
+    </ScreenBackground>
   );
 }
 
@@ -218,7 +252,45 @@ function ProfileCard({
 const CARD_SIZE = '47%';
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
+  audiogramCardWrap: {
+    borderRadius: SIZES.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: COLORS.cyan + '55',
+    overflow: 'hidden',
+    marginBottom: SIZES.lg,
+  },
+  audiogramCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.md,
+    padding: SIZES.lg,
+  },
+  audiogramIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 13,
+    backgroundColor: COLORS.cyan + '1E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  audiogramIcon: {
+    fontSize: 24,
+  },
+  audiogramBody: {
+    flex: 1,
+  },
+  audiogramTitle: {
+    color: COLORS.text,
+    fontSize: FONTS.size.md,
+    fontWeight: FONTS.weight.bold,
+    marginBottom: 2,
+  },
+  audiogramSub: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.size.xs,
+    lineHeight: 16,
+  },
   content:   { padding: SIZES.lg, paddingBottom: 40 },
   title: {
     color: COLORS.text,

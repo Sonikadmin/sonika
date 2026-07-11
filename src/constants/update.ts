@@ -14,5 +14,5 @@
 export const UPDATE_CHECK_URL =
   'https://raw.githubusercontent.com/Sonikadmin/sonika/main/version.json';
 
-export const CURRENT_VERSION      = '1.2.0';
-export const CURRENT_VERSION_CODE = 3;
+export const CURRENT_VERSION      = '1.4.0';
+export const CURRENT_VERSION_CODE = 5;

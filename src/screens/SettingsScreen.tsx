@@ -6,12 +6,15 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenBackground } from '../components/ScreenBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SIZES, SHADOWS } from '../constants/theme';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAudioStore } from '../store/audioStore';
+import { shareCrashReport } from '../services/CrashLog';
+import { requestIgnoreBatteryOptimizations } from '../services/BatteryGuard';
 
 export default function SettingsScreen() {
   const { settings, updateSettings, updateSmartNotifications } = useSettingsStore();
@@ -20,7 +23,7 @@ export default function SettingsScreen() {
   const btOutputs = connectedDevices.filter((d) => d.type !== 'microphone');
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScreenBackground>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Impostazioni</Text>
 
@@ -113,15 +116,63 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* AI exam reading */}
+        <Section title="Lettura AI esame">
+          <View style={styles.apiKeyBox}>
+            <Text style={styles.apiKeyLabel}>Chiave API Anthropic</Text>
+            <Text style={styles.apiKeyDesc}>
+              Serve solo per leggere l'esame audiometrico da una foto
+              (Profili → Profilo su misura). Puoi crearla su console.anthropic.com.
+            </Text>
+            <TextInput
+              style={styles.apiKeyInput}
+              value={settings.anthropicApiKey ?? ''}
+              onChangeText={(v) => updateSettings({ anthropicApiKey: v })}
+              placeholder="sk-ant-…"
+              placeholderTextColor={COLORS.textDisabled}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+            />
+          </View>
+        </Section>
+
+        {/* Support */}
+        <Section title="Assistenza">
+          <TouchableOpacity
+            style={styles.supportRow}
+            onPress={() => requestIgnoreBatteryOptimizations()}
+          >
+            <Ionicons name="battery-charging-outline" size={20} color={COLORS.success} />
+            <View style={styles.supportBody}>
+              <Text style={styles.supportTitle}>Esecuzione in background</Text>
+              <Text style={styles.supportDesc}>
+                Escludi Sonika dall'ottimizzazione batteria per non farlo spegnere in tasca
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.supportRow} onPress={() => shareCrashReport()}>
+            <Ionicons name="bug-outline" size={20} color={COLORS.warning} />
+            <View style={styles.supportBody}>
+              <Text style={styles.supportTitle}>Segnala un problema</Text>
+              <Text style={styles.supportDesc}>
+                Condividi l'ultimo errore registrato dall'app
+              </Text>
+            </View>
+            <Ionicons name="share-outline" size={18} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </Section>
+
         {/* App info */}
         <View style={styles.about}>
           <Text style={styles.aboutLogo}>Sonika</Text>
-          <Text style={styles.aboutVersion}>Versione 1.0.0</Text>
+          <Text style={styles.aboutVersion}>Versione 1.4.0</Text>
           <Text style={styles.aboutDesc}>Ausilio acustico intelligente per iOS e Android</Text>
           <Text style={styles.aboutCopy}>© 2024 Sonika. Tutti i diritti riservati.</Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenBackground>
   );
 }
 
@@ -300,8 +351,52 @@ const segStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content: { padding: SIZES.lg, paddingBottom: 40 },
+  apiKeyBox: {
+    padding: SIZES.md,
+  },
+  apiKeyLabel: {
+    color: COLORS.text,
+    fontSize: FONTS.size.md,
+    fontWeight: FONTS.weight.medium,
+    marginBottom: 4,
+  },
+  apiKeyDesc: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.size.xs,
+    lineHeight: 16,
+    marginBottom: SIZES.sm,
+  },
+  apiKeyInput: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: SIZES.borderRadius.sm,
+    color: COLORS.text,
+    paddingHorizontal: SIZES.md,
+    paddingVertical: SIZES.sm,
+    fontSize: FONTS.size.sm,
+  },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.md,
+    padding: SIZES.md,
+  },
+  supportBody: {
+    flex: 1,
+  },
+  supportTitle: {
+    color: COLORS.text,
+    fontSize: FONTS.size.md,
+    fontWeight: FONTS.weight.medium,
+  },
+  supportDesc: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.size.xs,
+    marginTop: 1,
+  },
   title: {
     color: COLORS.text,
     fontSize: FONTS.size.xxl,

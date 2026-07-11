@@ -1,78 +1,69 @@
 /**
- * BluetoothService — manages BT device discovery and audio routing.
+ * BluetoothService — dispositivi audio reali (Bluetooth, jack, USB).
  *
- * PROTOTYPE: returns simulated devices. In production replace with
- * react-native-ble-plx + AVAudioSession (iOS) / AudioManager (Android)
- * for actual device enumeration and routing.
+ * Si appoggia al modulo nativo SonikaAudioEngine:
+ * - getAudioDevices(): dispositivi audio esterni collegati al sistema
+ * - onAudioDevicesChanged: evento nativo quando un dispositivo viene
+ *   collegato/scollegato (AudioDeviceCallback su Android, route change su iOS)
+ *
+ * Nota: il pairing Bluetooth resta a carico delle impostazioni di sistema —
+ * qui vediamo i dispositivi già accoppiati e collegati, che è ciò che serve
+ * per il routing audio.
  */
+import NativeAudioEngine, {
+  NativeAudioDevice,
+} from '../../modules/sonika-audio-engine/src';
 import { BluetoothDevice } from '../types';
 
 type DeviceCallback = (devices: BluetoothDevice[]) => void;
 type DisconnectCallback = (deviceId: string, type: 'input' | 'output') => void;
 
+function toBluetoothDevice(d: NativeAudioDevice): BluetoothDevice {
+  return {
+    id: d.id,
+    name: d.name,
+    type: d.type,
+    connected: d.connected,
+  };
+}
+
 class BluetoothService {
   private listeners: DeviceCallback[] = [];
   private disconnectListeners: DisconnectCallback[] = [];
-  private simulatedDevices: BluetoothDevice[] = [];
-  private scanInterval: ReturnType<typeof setInterval> | null = null;
+  private devices: BluetoothDevice[] = [];
+  private nativeSub: { remove: () => void } | null = null;
 
+  /** Legge i dispositivi attuali e resta in ascolto dei cambiamenti. */
   async startScan(): Promise<void> {
-    // Simulate device discovery after short delay
-    setTimeout(() => {
-      this.simulatedDevices = [
-        {
-          id: 'bt-mic-001',
-          name: 'Microfono Bluetooth Tavolo',
-          type: 'microphone',
-          connected: false,
-          rssi: -55,
-        },
-        {
-          id: 'bt-bone-001',
-          name: 'Shokz OpenRun Pro',
-          type: 'bone_conduction',
-          connected: true,
-          rssi: -40,
-        },
-        {
-          id: 'bt-hp-001',
-          name: 'AirPods Pro',
-          type: 'headphones',
-          connected: true,
-          rssi: -35,
-        },
-      ];
-      this.notifyListeners();
-    }, 1200);
-  }
-
-  stopScan(): void {
-    if (this.scanInterval) {
-      clearInterval(this.scanInterval);
-      this.scanInterval = null;
+    this.refresh();
+    if (!this.nativeSub) {
+      this.nativeSub = NativeAudioEngine.addListener(
+        'onAudioDevicesChanged',
+        (e) => this.handleNativeDevices(e.devices),
+      );
     }
   }
 
-  async connect(deviceId: string): Promise<void> {
-    this.simulatedDevices = this.simulatedDevices.map((d) =>
-      d.id === deviceId ? { ...d, connected: true } : d
-    );
-    this.notifyListeners();
+  stopScan(): void {
+    this.nativeSub?.remove();
+    this.nativeSub = null;
   }
 
-  async disconnect(deviceId: string): Promise<void> {
-    this.simulatedDevices = this.simulatedDevices.map((d) =>
-      d.id === deviceId ? { ...d, connected: false } : d
-    );
-    this.notifyListeners();
+  refresh(): void {
+    try {
+      this.handleNativeDevices(NativeAudioEngine.getAudioDevices());
+    } catch {
+      // Modulo non disponibile (es. Expo Go): nessun dispositivo
+      this.handleNativeDevices([]);
+    }
   }
 
   getDevices(): BluetoothDevice[] {
-    return this.simulatedDevices;
+    return this.devices;
   }
 
   getConnectedDevices(): BluetoothDevice[] {
-    return this.simulatedDevices.filter((d) => d.connected);
+    return this.devices.filter((d) => d.connected);
   }
 
   onDevicesChanged(cb: DeviceCallback): () => void {
@@ -89,8 +80,19 @@ class BluetoothService {
     };
   }
 
-  private notifyListeners(): void {
-    this.listeners.forEach((cb) => cb(this.simulatedDevices));
+  private handleNativeDevices(native: NativeAudioDevice[]): void {
+    const next = native.map(toBluetoothDevice);
+
+    // Notifica le disconnessioni (dispositivi spariti dalla lista)
+    for (const old of this.devices) {
+      if (!next.some((d) => d.id === old.id)) {
+        const kind = old.type === 'microphone' ? 'input' : 'output';
+        this.disconnectListeners.forEach((cb) => cb(old.id, kind));
+      }
+    }
+
+    this.devices = next;
+    this.listeners.forEach((cb) => cb(next));
   }
 }
 

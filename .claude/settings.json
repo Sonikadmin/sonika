@@ -61,7 +61,26 @@
       "PowerShell(Get-Command git -ErrorAction SilentlyContinue)",
       "PowerShell(winget list --name \"GitHub CLI\" 2>$null)",
       "PowerShell(winget install GitHub.cli --accept-source-agreements --accept-package-agreements --silent 2>&1)",
-      "PowerShell(winget install GitHub.cli --accept-source-agreements --accept-package-agreements 2>&1)"
+      "PowerShell(winget install GitHub.cli --accept-source-agreements --accept-package-agreements 2>&1)",
+      "Bash(git push *)",
+      "Bash(C:/Users/maroc/AppData/Local/gh-cli/bin/gh.exe auth *)",
+      "Bash(C:/Users/maroc/AppData/Local/gh-cli/bin/gh.exe repo *)",
+      "Bash(git reset *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Microsoft\\\\jdk-17.0.18.8-hotspot\" ./gradlew assembleRelease)",
+      "Bash(C:/Users/maroc/AppData/Local/gh-cli/bin/gh.exe release create v1.1.0 'd:\\\\le mie app\\\\Sonika\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk#app-release.apk' --title 'Sonika v1.1.0' --notes ' *)",
+      "Bash(C:/Users/maroc/AppData/Local/gh-cli/bin/gh.exe release *)",
+      "Bash(python design/generate_splash.py)",
+      "Bash(python design/convert_assets.py)",
+      "Bash(python3 \"d:/le mie app/Sonika/design/generate_splash.py\")",
+      "Bash(python3 \"d:/le mie app/Sonika/design/convert_assets.py\")",
+      "PowerShell(python \"d:\\\\le mie app\\\\Sonika\\\\design\\\\generate_splash.py\" 2>&1)",
+      "PowerShell(python \"d:\\\\le mie app\\\\Sonika\\\\design\\\\convert_assets.py\" 2>&1)",
+      "PowerShell(py \"d:\\\\le mie app\\\\Sonika\\\\design\\\\generate_splash.py\" 2>&1)",
+      "PowerShell(py \"d:\\\\le mie app\\\\Sonika\\\\design\\\\convert_assets.py\" 2>&1)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Microsoft/jdk-17.0.18.8-hotspot\" ANDROID_HOME=\"C:/Users/maroc/AppData/Local/Android/Sdk\" ./gradlew assembleRelease)"
     ]
   }
 }

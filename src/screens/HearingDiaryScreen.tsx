@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenBackground } from '../components/ScreenBackground';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 import { COLORS, FONTS, SIZES, SHADOWS } from '../constants/theme';
@@ -68,7 +68,7 @@ export default function HearingDiaryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScreenBackground>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Diario dell'Udito</Text>
@@ -138,7 +138,7 @@ export default function HearingDiaryScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenBackground>
   );
 }
 
@@ -284,7 +284,7 @@ const srStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content:   { padding: SIZES.lg, paddingBottom: 40 },
   header: {
     flexDirection: 'row',

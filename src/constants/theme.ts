@@ -79,6 +79,19 @@ export const SIZES = {
   headerHeight: 56,
 };
 
+export const GRADIENTS = {
+  // Sfondo "cosmico": blu notte con sfumatura viola in basso
+  background: ['#0B1030', '#080B1A', '#120A2E'] as const,
+  // Card leggermente luminose in alto
+  card: ['#171C42', '#101332'] as const,
+  cardActive: ['#1E2650', '#131740'] as const,
+  // Accenti neon
+  primary: ['#00CCFF', '#7C4DFF'] as const,
+  primarySoft: ['#00CCFF33', '#7C4DFF33'] as const,
+  violet: ['#7C4DFF', '#C46BFF'] as const,
+  success: ['#00E676', '#00B89C'] as const,
+};
+
 export const SHADOWS = {
   small: {
     shadowColor: '#000',

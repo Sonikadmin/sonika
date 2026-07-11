@@ -22,6 +22,8 @@ export interface AudioEngineSettings {
   conversationMode: boolean;
   monoMode: boolean;
   monoChannel: 'left' | 'right';
+  audioQuality?: 'low_latency' | 'high_quality';
+  discreteMode?: boolean;
 }
 
 type VolumeCallback = (level: number) => void;
@@ -49,6 +51,8 @@ class AudioEngine {
       conversationMode: settings.conversationMode,
       monoMode:        settings.monoMode,
       monoChannel:     settings.monoChannel,
+      audioQuality:    settings.audioQuality ?? 'low_latency',
+      discreteMode:    settings.discreteMode ?? false,
     });
   }
 
@@ -71,7 +75,19 @@ class AudioEngine {
     if (settings.conversationMode != null) patch.conversationMode = settings.conversationMode;
     if (settings.monoMode        != null) patch.monoMode        = settings.monoMode;
     if (settings.monoChannel)    patch.monoChannel    = settings.monoChannel;
+    if (settings.micSource)      patch.micSource      = settings.micSource;
+    if (settings.audioOutput)    patch.audioOutput    = settings.audioOutput;
+    if (settings.audioQuality)   patch.audioQuality   = settings.audioQuality;
     NativeAudioEngine.updateSettings(patch as any);
+  }
+
+  /** Tono puro per il test dell'udito (frequency Hz, ear left/right/both, amplitude 0..1). */
+  playTone(frequency: number, ear: 'left' | 'right' | 'both', amplitude: number): void {
+    NativeAudioEngine.playTone(frequency, ear, amplitude);
+  }
+
+  stopTone(): void {
+    NativeAudioEngine.stopTone();
   }
 
   onVolumeLevel(cb: VolumeCallback): void {

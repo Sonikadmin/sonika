@@ -18,15 +18,33 @@ export interface AudioEngineOptions {
   conversationMode: boolean;
   monoMode: boolean;
   monoChannel: 'left' | 'right';
+  /** low_latency = buffer minimi; high_quality = buffer ampi + compressione AGC */
+  audioQuality?: 'low_latency' | 'high_quality';
+  /** Notifica del foreground service silenziosa e minimale */
+  discreteMode?: boolean;
 }
 
 export interface VolumeLevelEvent {
   level: number;
 }
 
+export interface NativeAudioDevice {
+  id: string;
+  name: string;
+  type: 'microphone' | 'headphones' | 'unknown';
+  isInput: boolean;
+  isOutput: boolean;
+  connected: boolean;
+}
+
+export interface AudioDevicesChangedEvent {
+  devices: NativeAudioDevice[];
+}
+
 // EventsMap requires functions — wrap payload in a function signature
 type SonikaEvents = {
   onVolumeLevel: (event: VolumeLevelEvent) => void;
+  onAudioDevicesChanged: (event: AudioDevicesChangedEvent) => void;
 };
 
 declare class SonikaAudioEngineModuleType extends NativeModule<SonikaEvents> {
@@ -34,6 +52,12 @@ declare class SonikaAudioEngineModuleType extends NativeModule<SonikaEvents> {
   stop(): Promise<void>;
   updateSettings(settings: Partial<AudioEngineOptions>): void;
   isRunning(): boolean;
+  getAudioDevices(): NativeAudioDevice[];
+  /** Tono puro per il test dell'udito. ear: 'left' | 'right' | 'both'. amplitude 0..1 */
+  playTone(frequency: number, ear: string, amplitude: number): void;
+  stopTone(): void;
+  /** True se l'ottimizzazione batteria può interrompere Sonika in background (Android). */
+  isBatteryOptimized(): boolean;
 }
 
 const nativeModule: SonikaAudioEngineModuleType =

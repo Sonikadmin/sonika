@@ -16,6 +16,33 @@ struct AudioProcessorSettings {
   var monoChannel: Int    = 0                  // 0=left, 1=right
 }
 
+// MARK: - Peak limiter (attacco istantaneo, release ~150 ms)
+// Protegge l'udito dell'utente: limita i picchi in uscita senza la
+// distorsione dell'hard clipping. Fondamentale con amplificazione fino a 8x.
+
+final class PeakLimiter {
+  private let threshold: Float = 0.89              // ≈ -1 dBFS
+  private var releaseCoeff: Float = 0.99985
+  private var envelope: Float = 0
+
+  func configure(sampleRate: Float) {
+    releaseCoeff = exp(-1 / (0.150 * sampleRate))  // release 150 ms
+  }
+
+  func process(_ buf: UnsafeMutablePointer<Float>, count: Int) {
+    for i in 0..<count {
+      let mag = abs(buf[i])
+      envelope = mag > envelope ? mag : envelope * releaseCoeff
+      if envelope > threshold {
+        buf[i] *= threshold / envelope
+      }
+      buf[i] = max(-1, min(1, buf[i]))
+    }
+  }
+
+  func reset() { envelope = 0 }
+}
+
 // MARK: - SonikaAudioProcessor
 
 /// Manages an AVAudioEngine graph:
@@ -34,6 +61,8 @@ final class SonikaAudioProcessor {
   // DSP
   private let leftEQ  = ChannelEQ()
   private let rightEQ = ChannelEQ()
+  private let leftLimiter  = PeakLimiter()
+  private let rightLimiter = PeakLimiter()
 
   // Noise gate state (used by Sonika Clean)
   private var noiseGateThreshold: Float = 0.02
@@ -64,6 +93,8 @@ final class SonikaAudioProcessor {
     try configureSession(output: output, session: session)
 
     sampleRate = Float(session.sampleRate)
+    leftLimiter.configure(sampleRate: sampleRate)
+    rightLimiter.configure(sampleRate: sampleRate)
 
     // Re-apply current EQ coefficients for the discovered sample rate
     let s = settings
@@ -113,6 +144,8 @@ final class SonikaAudioProcessor {
     engine.stop()
     leftEQ.reset()
     rightEQ.reset()
+    leftLimiter.reset()
+    rightLimiter.reset()
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
   }
 
@@ -120,6 +153,28 @@ final class SonikaAudioProcessor {
     settings = s
     leftEQ.updateBands(gains: s.leftGains,  sampleRate: sampleRate)
     rightEQ.updateBands(gains: s.rightGains, sampleRate: sampleRate)
+  }
+
+  /// Routing dinamico mentre il motore è attivo: seleziona il microfono
+  /// preferito (BT via HFP oppure integrato). L'uscita segue il routing di
+  /// sistema (A2DP ha priorità quando le cuffie BT sono connesse).
+  func applyRouting(micSource: String, audioOutput: String) {
+    let session = AVAudioSession.sharedInstance()
+    do {
+      if micSource == "bluetooth" || micSource == "combined" {
+        if let bt = session.availableInputs?.first(where: {
+          $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+        }) {
+          try session.setPreferredInput(bt)
+          return
+        }
+      }
+      if let builtin = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
+        try session.setPreferredInput(builtin)
+      }
+    } catch {
+      // Il routing non deve mai interrompere l'audio: fallback automatico.
+    }
   }
 
   // MARK: - Private: AVAudioSession
@@ -222,6 +277,10 @@ final class SonikaAudioProcessor {
 
     vDSP_vsmul(leftBuf,  1, &lGain, outData[0], 1, vDSP_Length(frames))
     vDSP_vsmul(rightBuf, 1, &rGain, outData[1], 1, vDSP_Length(frames))
+
+    // --- Limiter di sicurezza in uscita ---
+    leftLimiter.process(outData[0],  count: frames)
+    rightLimiter.process(outData[1], count: frames)
 
     // --- Volume level reporting (RMS of left channel) ---
     var rms: Float = 0

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AudioState, EQBand, MicSource, AudioOutput, BluetoothDevice } from '../types';
 import { flatEQBands } from '../utils/audio';
 
@@ -36,7 +38,7 @@ interface AudioStore extends AudioState {
   }) => void;
 }
 
-export const useAudioStore = create<AudioStore>()((set, get) => ({
+export const useAudioStore = create<AudioStore>()(persist((set, get) => ({
   isRunning: false,
   micSource: 'smartphone',
   audioOutput: 'bluetooth_headphones',
@@ -101,4 +103,23 @@ export const useAudioStore = create<AudioStore>()((set, get) => ({
       micSource: profile.preferredMicSource,
       audioOutput: profile.preferredOutput,
     }),
+}), {
+  name: 'sonika-audio-settings',
+  storage: createJSONStorage(() => AsyncStorage),
+  // Persistiamo solo le impostazioni audio: lo stato runtime
+  // (isRunning, volumeLevel, dispositivi collegati) riparte pulito.
+  partialize: (s) => ({
+    micSource: s.micSource,
+    audioOutput: s.audioOutput,
+    sonikaClean: s.sonikaClean,
+    conversationMode: s.conversationMode,
+    monoMode: s.monoMode,
+    monoChannel: s.monoChannel,
+    amplification: s.amplification,
+    stereoBalance: s.stereoBalance,
+    leftVolume: s.leftVolume,
+    rightVolume: s.rightVolume,
+    leftEQ: s.leftEQ,
+    rightEQ: s.rightEQ,
+  }) as AudioStore,
 }));

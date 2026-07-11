@@ -57,6 +57,16 @@ export interface AudioState {
   selectedBluetoothOutputId: string | null;
 }
 
+/** Soglie uditive in dB HL per frequenza (Hz). null = non misurata. */
+export type AudiogramThresholds = Record<number, number | null>;
+
+export interface Audiogram {
+  left: AudiogramThresholds;
+  right: AudiogramThresholds;
+  source: 'manual' | 'photo';
+  updatedAt: number;
+}
+
 export interface HearingDiaryEntry {
   id: string;
   profileId: string;
@@ -87,4 +97,6 @@ export interface AppSettings {
   darkMode: boolean;
   defaultProfileId: string;
   showOnboarding: boolean;
+  /** Chiave API Anthropic per la lettura AI dell'esame audiometrico (opzionale). */
+  anthropicApiKey?: string;
 }

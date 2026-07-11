@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -34,11 +34,22 @@ export function EQBandSlider({ band, onChange, color = COLORS.primary }: Props) 
   const startY = useSharedValue(0);
   const position = useSharedValue(dbToPosition(band.gain));
   const displayDb = useSharedValue(band.gain);
+  const isDragging = useSharedValue(false);
 
   const clampedPos = (val: number) => clamp(val, 0, TRACK_HEIGHT);
 
+  // Sincronizza il cursore quando il gain cambia dall'esterno
+  // (reset, profilo applicato, canali collegati)
+  useEffect(() => {
+    if (!isDragging.value) {
+      position.value = withSpring(dbToPosition(band.gain), { damping: 20 });
+      displayDb.value = band.gain;
+    }
+  }, [band.gain]);
+
   const gesture = Gesture.Pan()
     .onBegin(() => {
+      isDragging.value = true;
       startY.value = position.value;
     })
     .onUpdate((e) => {
@@ -46,6 +57,9 @@ export function EQBandSlider({ band, onChange, color = COLORS.primary }: Props) 
       position.value = newPos;
       displayDb.value = positionToDb(newPos);
       runOnJS(onChange)(band.id, positionToDb(newPos));
+    })
+    .onFinalize(() => {
+      isDragging.value = false;
     });
 
   const thumbStyle = useAnimatedStyle(() => ({
@@ -87,7 +101,7 @@ export function EQBandSlider({ band, onChange, color = COLORS.primary }: Props) 
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    width: 52,
+    flex: 1,
   },
   dbLabel: {
     fontSize: FONTS.size.xs,

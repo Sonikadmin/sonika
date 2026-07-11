@@ -1,16 +1,53 @@
 package expo.modules.sonikaaudioengine
 
+import android.content.Context
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class SonikaAudioEngineModule : Module() {
 
   private val processor = SonikaAudioProcessor()
+  private val toneGenerator = ToneGenerator()
+  private var deviceCallback: AudioDeviceCallback? = null
+
+  private val audioManager: AudioManager?
+    get() = appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
   override fun definition() = ModuleDefinition {
     Name("SonikaAudioEngine")
 
-    Events("onVolumeLevel")
+    Events("onVolumeLevel", "onAudioDevicesChanged")
+
+    // Notifica JS quando un dispositivo audio viene collegato/scollegato
+    OnStartObserving {
+      if (deviceCallback == null) {
+        val cb = object : AudioDeviceCallback() {
+          override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>)     = emitDevices()
+          override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = emitDevices()
+        }
+        deviceCallback = cb
+        audioManager?.registerAudioDeviceCallback(cb, null)
+      }
+    }
+
+    OnStopObserving {
+      deviceCallback?.let { audioManager?.unregisterAudioDeviceCallback(it) }
+      deviceCallback = null
+    }
+
+    OnDestroy {
+      deviceCallback?.let { audioManager?.unregisterAudioDeviceCallback(it) }
+      deviceCallback = null
+      toneGenerator.stop()
+      processor.stop()
+      appContext.reactContext?.let { SonikaForegroundService.stop(it) }
+    }
+
+    // ── getAudioDevices ───────────────────────────────────────────────────
+    Function("getAudioDevices") { listExternalDevices() }
 
     // ── start ─────────────────────────────────────────────────────────────
     AsyncFunction("start") { options: Map<String, Any> ->
@@ -21,14 +58,34 @@ class SonikaAudioEngineModule : Module() {
         sendEvent("onVolumeLevel", mapOf("level" to level))
       }
 
-      val output = options["audioOutput"] as? String ?: "bluetooth_headphones"
-      processor.start(output)
+      processor.start(audioManager)
+
+      // Foreground service: audio attivo anche a schermo spento
+      val discrete = options["discreteMode"] as? Boolean ?: false
+      appContext.reactContext?.let { SonikaForegroundService.start(it, discrete) }
     }
 
     // ── stop ──────────────────────────────────────────────────────────────
     AsyncFunction("stop") {
       processor.onVolumeLevel = null
       processor.stop()
+      appContext.reactContext?.let { SonikaForegroundService.stop(it) }
+    }
+
+    // ── Toni puri per il test dell'udito ──────────────────────────────────
+    Function("playTone") { frequency: Double, ear: String, amplitude: Double ->
+      toneGenerator.play(frequency, ear, amplitude)
+    }
+
+    Function("stopTone") { toneGenerator.stop() }
+
+    // ── Ottimizzazione batteria ────────────────────────────────────────────
+    // True se il sistema può uccidere il foreground service per "risparmio":
+    // l'app suggerisce all'utente di escludere Sonika dall'ottimizzazione.
+    Function("isBatteryOptimized") {
+      val ctx = appContext.reactContext ?: return@Function false
+      val pm = ctx.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+      return@Function !pm.isIgnoringBatteryOptimizations(ctx.packageName)
     }
 
     // ── updateSettings ────────────────────────────────────────────────────
@@ -45,8 +102,13 @@ class SonikaAudioEngineModule : Module() {
         conversationMode= (patch["conversationMode"]as? Boolean)           ?: cur.conversationMode,
         monoMode        = (patch["monoMode"]        as? Boolean)           ?: cur.monoMode,
         monoChannel     = if (patch.containsKey("monoChannel")) (if (patch["monoChannel"] == "right") 1 else 0) else cur.monoChannel,
+        micSource       = (patch["micSource"]       as? String)            ?: cur.micSource,
+        audioOutput     = (patch["audioOutput"]     as? String)            ?: cur.audioOutput,
+        audioQuality    = (patch["audioQuality"]    as? String)            ?: cur.audioQuality,
       )
+      val routingChanged = merged.micSource != cur.micSource || merged.audioOutput != cur.audioOutput
       processor.applySettings(merged)
+      if (routingChanged) processor.applyRouting(audioManager)
     }
 
     // ── isRunning ─────────────────────────────────────────────────────────
@@ -54,6 +116,63 @@ class SonikaAudioEngineModule : Module() {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  private fun emitDevices() {
+    sendEvent("onAudioDevicesChanged", mapOf("devices" to listExternalDevices()))
+  }
+
+  /**
+   * Dispositivi audio esterni realmente collegati (Bluetooth, jack, USB).
+   * Esclude mic/speaker/auricolare integrati.
+   */
+  private fun listExternalDevices(): List<Map<String, Any>> {
+    val am = audioManager ?: return emptyList()
+    val builtin = setOf(
+      AudioDeviceInfo.TYPE_BUILTIN_MIC,
+      AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+      AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
+      AudioDeviceInfo.TYPE_TELEPHONY,
+      AudioDeviceInfo.TYPE_FM_TUNER,
+      AudioDeviceInfo.TYPE_REMOTE_SUBMIX,
+    )
+    return try {
+      am.getDevices(AudioManager.GET_DEVICES_ALL)
+        .filter { it.type !in builtin }
+        .map { d ->
+          mapOf(
+            "id"        to d.id.toString(),
+            "name"      to (d.productName?.toString()?.ifBlank { null } ?: typeLabel(d.type)),
+            "type"      to mapType(d),
+            "isInput"   to d.isSource,
+            "isOutput"  to d.isSink,
+            "connected" to true,
+          )
+        }
+        .distinctBy { it["id"] }
+    } catch (_: Exception) {
+      emptyList()
+    }
+  }
+
+  private fun mapType(d: AudioDeviceInfo): String = when (d.type) {
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO ->
+      if (d.isSource) "microphone" else "headphones"
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+    AudioDeviceInfo.TYPE_USB_HEADSET   -> "headphones"
+    else                               -> "unknown"
+  }
+
+  private fun typeLabel(type: Int): String = when (type) {
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Dispositivo Bluetooth"
+    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+    AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "Cuffie con filo"
+    AudioDeviceInfo.TYPE_USB_HEADSET,
+    AudioDeviceInfo.TYPE_USB_DEVICE -> "Dispositivo USB"
+    else -> "Dispositivo audio"
+  }
 
   @Suppress("UNCHECKED_CAST")
   private fun settingsFrom(d: Map<String, Any>): AudioProcessorSettings {
@@ -67,7 +186,10 @@ class SonikaAudioEngineModule : Module() {
       sonikaClean     = d["sonikaClean"]     as? Boolean ?: false,
       conversationMode= d["conversationMode"]as? Boolean ?: false,
       monoMode        = d["monoMode"]        as? Boolean ?: false,
-      monoChannel     = if ((d["monoChannel"] as? String) == "right") 1 else 0
+      monoChannel     = if ((d["monoChannel"] as? String) == "right") 1 else 0,
+      micSource       = d["micSource"]       as? String ?: "smartphone",
+      audioOutput     = d["audioOutput"]     as? String ?: "bluetooth_headphones",
+      audioQuality    = d["audioQuality"]    as? String ?: "low_latency",
     )
   }
 

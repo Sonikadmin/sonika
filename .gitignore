@@ -43,3 +43,7 @@ npm-debug.log*
 # Design scripts (non serve nel repo)
 design/convert_assets.py
 design/generate_splash.py
+
+# Firma release (MAI committare: repo pubblico)
+android/keystore.properties
+android/app/*.keystore
